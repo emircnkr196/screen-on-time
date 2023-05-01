@@ -91,7 +91,7 @@ namespace ScreenOnTime
         // pause trigger
         private void Pause_Tick(object sender, EventArgs e)
         {
-            if (isRunning == false)
+            if (Properties.Settings.Default.IsRunning == false)
             {
                 pauseButton.Text = "Resume";
             }
