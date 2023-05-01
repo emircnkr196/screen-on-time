@@ -5,12 +5,15 @@ namespace ScreenOnTime
 {
     public partial class Form1 : Form
     {
-        public int ScreenTimeSeconds = 0;
-        public string ScreenTime;
-        public string isACPlugged;
+        // code-specific variables
+        public string ScreenTime = "";
         public int nowPercent = 0;
-        public int lastPercent = 0;
 
+        // variables as settings
+        public bool isRunning = Properties.Settings.Default.IsRunning;
+        public int ScreenTimeSeconds = Properties.Settings.Default.ScreenTimeSeconds;
+        public int lastPercent = Properties.Settings.Default.LastPercent;
+        
         public Form1()
         {
             InitializeComponent();
@@ -18,12 +21,14 @@ namespace ScreenOnTime
 
         private void Form1_Load(object sender, EventArgs e)
         {
-            // start AC Plug and measuring 
+            // start AC Plug and calculating 
             ACPlugControl.Start();
+
+            // pause trigger
+            Pause.Start();
 
             // notify screen-on-time
             Notify.Start();
-            NotifyIcon.Icon = SystemIcons.Application;
         }
 
         // AC Plug and measuring timer
@@ -32,33 +37,34 @@ namespace ScreenOnTime
             // check if it's running on battery
             Boolean isRunningOnBattery = (System.Windows.Forms.SystemInformation.PowerStatus.PowerLineStatus == PowerLineStatus.Offline);
 
-            // measuring
+            // calculating
             if (isRunningOnBattery == true)
             {
                 // while on battery
-                isACPlugged = "Running on Battery";
-                ScreenTimeSeconds++;
-                if (ScreenTimeSeconds > 3600)
+                // check calculating is running
+                if (Properties.Settings.Default.IsRunning == true) // continue
                 {
-                    ScreenTime = (ScreenTimeSeconds / 3600).ToString() + " hour(s) and " + ((ScreenTimeSeconds % 3600) / 60).ToString() + "minute(s) past from %" + lastPercent + ".";
+                    ScreenTimeSeconds++;
+
+                    Properties.Settings.Default.ScreenTimeSeconds = ScreenTimeSeconds;
+                    SaveProcess();
+
+                    ScreenTime = (ScreenTimeSeconds / 3600).ToString("00") + ":" + ((ScreenTimeSeconds % 3600) / 60).ToString("00") + " from " + lastPercent + "% to " + nowPercent + "%";
                 }
-                else if (ScreenTimeSeconds < 3600 && ScreenTimeSeconds >= 60)
+                else // pause
                 {
-                    ScreenTime = ((ScreenTimeSeconds % 3600) / 60).ToString() + " minute(s) past from %" + lastPercent + ".";
-                }
-                else if (ScreenTimeSeconds < 60)
-                {
-                    ScreenTime = "Please wait a minute.";
+                    ScreenTime = "Calculating disabled";
                 }
             }
-            else
+            else // while ac plugged
             {
-                // while ac plugged
                 ScreenTimeSeconds = 0;
-                isACPlugged = "AC Plugged";
-                ScreenTime = "Measuring disabled";
 
-                lastPercent = nowPercent;
+                Properties.Settings.Default.ScreenTimeSeconds = ScreenTimeSeconds;
+                Properties.Settings.Default.LastPercent = nowPercent;
+                SaveProcess();
+
+                ScreenTime = "Calculating disabled due to charging";
             }
         }
 
@@ -71,14 +77,43 @@ namespace ScreenOnTime
 
             if (lastPercent == 0)
             {
-                lastPercent = nowPercent;
+                Properties.Settings.Default.LastPercent = nowPercent;
+                SaveProcess();
             }
 
             // reporting info as notify icon text
-            NotifyIcon.Text = "Battery percent: " + nowPercent + "\n" + ScreenTime;
+            NotifyIcon.Text = ScreenTime;
 
             // reporting info as notify icon text
             label2.Text = NotifyIcon.Text;
+        }
+
+        // pause trigger
+        private void Pause_Tick(object sender, EventArgs e)
+        {
+            if (isRunning == false)
+            {
+                pauseButton.Text = "Resume";
+            }
+            else
+            {
+                pauseButton.Text = "Pause";
+            }
+        }
+
+        private void pauseButton_Click(object sender, EventArgs e)
+        {
+            if (Properties.Settings.Default.IsRunning == false)
+            {
+                Properties.Settings.Default.IsRunning = true;
+                SaveProcess();
+            }
+            else
+            {
+                Properties.Settings.Default.IsRunning = false;
+                Properties.Settings.Default.ScreenTimeSeconds = ScreenTimeSeconds;
+                SaveProcess();
+            }
         }
 
         // interface clicks
@@ -97,22 +132,10 @@ namespace ScreenOnTime
             Show();
         }
 
-        private void exitButton_Click(object sender, EventArgs e)
+        // extra function to avoid repeating saving functions
+        private void SaveProcess()
         {
-            Application.Exit();
+            Properties.Settings.Default.Save();
         }
-
-        // deactivate controlbox exit button
-        private const int CP_NOCLOSE_BUTTON = 0x200;
-        protected override CreateParams CreateParams
-        {
-            get
-            {
-                CreateParams myCp = base.CreateParams;
-                myCp.ClassStyle = myCp.ClassStyle | CP_NOCLOSE_BUTTON;
-                return myCp;
-            }
-        }
-
     }
 }
